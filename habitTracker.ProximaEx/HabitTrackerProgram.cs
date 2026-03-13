@@ -54,9 +54,6 @@ class HabitTrackerProgram
 	static List<string> habitTypes = [ "Coffee" ];
 	static int currentHabitIndex = 0;
 	static bool SelectAllAdded = false;
-	//Add 'all' functionality for viewing all habits in db
-	//list to store habit types
-	//after creating table, call sql query to add any other habit types
 
 	static void Main(string[] args)
 	{
@@ -153,7 +150,6 @@ class HabitTrackerProgram
 
 	static void Menu()
 	{	
-		if (!SelectAllAdded && habitTypes.Count >= 2) { habitTypes.Add("All"); SelectAllAdded = true; }
 		string[] menuStrings = [
 				"\n",
 				"Welcome to Coffee, um I mean Habit Logger",
@@ -177,6 +173,7 @@ class HabitTrackerProgram
 		while (!exit)
 		{
 			Draw(menuStrings);
+			if (!SelectAllAdded && habitTypes.Count >= 2) { habitTypes.Add("All"); SelectAllAdded = true; }
 			Console.SetCursorPosition(width / 2 - 7, 7);
 			Console.Write(CenterText(habitTypes[currentHabitIndex], 14));
 			Console.SetCursorPosition(width / 2 - 1, 19);
@@ -189,6 +186,7 @@ class HabitTrackerProgram
 			else
 			{
 				string menuInput = char.ToString(keyInput.KeyChar) + Console.ReadLine();
+				string viewAllQueryCond = habitTypes[currentHabitIndex] == "All" ? "" : $"WHERE Habit = '{habitTypes[currentHabitIndex]}'";
 
 				switch (menuInput)
 				{
@@ -244,7 +242,7 @@ class HabitTrackerProgram
 		SectionExitMessage("Record added! ");
 	}
 
-	static void ViewAll(string table)
+	static void ViewAll(string queryCondition = "")
 	{
 		Console.Clear();
 		List<CoffeeRecord> queryRecords = new();
@@ -254,7 +252,7 @@ class HabitTrackerProgram
 			connection.Open();
 			var tableCmd = connection.CreateCommand();
 			tableCmd.CommandText = 
-				@$"SELECT * FROM {table}";
+				@$"SELECT * FROM habit_table {queryCondition}";
 			var reader = tableCmd.ExecuteReader();
 
 			if (reader.HasRows)
@@ -279,10 +277,49 @@ class HabitTrackerProgram
 		}
 	}
 
+	static void ViewTypes(string queryCondition = "")
+	{
+		Console.Clear();
+		string[] rows = [];
+
+		using (connection)
+		{
+			connection.Open();
+			var tableCmd = connection.CreateCommand();
+			tableCmd.CommandText =
+				@$"SELECT * FROM habit_types {queryCondition}";
+			var reader = tableCmd.ExecuteReader();
+
+			if (reader.HasRows)
+			{
+				while (reader.Read())
+				{
+					Array.Resize(ref rows, rows.Length + 1);
+					rows[rows.Length - 1] = reader.GetString(0);
+				}
+			}
+			else { Console.WriteLine(CenterText("No data found\n")); }
+
+			reader.Close();
+			connection.Close();
+		}
+		if (rows.Length > 0)
+		{
+			int p = 0;
+			Console.WriteLine(CenterText("------------- Records -------------"));
+			foreach (string row in rows)
+			{
+				Console.WriteLine(CenterText($"{p}. {row}"));
+				p++;
+			}
+			Console.WriteLine(CenterText("-----------------------------------\n"));
+		}
+	}
+
 	static void Edit()
 	{
 		Console.Clear();
-		ViewAll("habit_table");
+		ViewAll();
 		int id = GetNumInput("Enter Id for record you want to change");
 
 		using (connection)
@@ -497,7 +534,7 @@ class HabitTrackerProgram
 				connection.Close();
 			}
 			habitTypes.Add(newHabit);
-			SectionExitMessage("Habit type added! ");
+			SectionExitMessage("Habit type added!  ");
 		}
 	}
 }
