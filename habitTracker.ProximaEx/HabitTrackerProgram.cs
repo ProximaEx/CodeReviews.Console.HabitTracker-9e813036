@@ -1,9 +1,10 @@
-﻿using System;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 
 /* ----- Project Reqs -----
@@ -51,7 +52,7 @@ class HabitTrackerProgram
 	static int width;
 	static int height;
 	static List<string> habitTypes = [ "Coffee" ];
-	static int currentHabitIndex = 1;
+	static int currentHabitIndex = 0;
 	static bool SelectAllAdded = false;
 	//Add 'all' functionality for viewing all habits in db
 	//list to store habit types
@@ -158,9 +159,9 @@ class HabitTrackerProgram
 				"Welcome to Coffee, um I mean Habit Logger",
 				"Track whatever...",
 				"\n",
-				"   +---------------+   ",
-				"<  |               |  >",
-				"   +---------------+   ",
+				"   +----------------+   ",
+				"<  |                |  >",
+				"   +----------------+   ",
 				"\n",
 				"Please select an option:",
 				"",
@@ -177,21 +178,17 @@ class HabitTrackerProgram
 		{
 			Draw(menuStrings);
 			Console.SetCursorPosition(width / 2 - 7, 7);
-			Console.Write(CenterText(habitTypes[currentHabitIndex], 13));
+			Console.Write(CenterText(habitTypes[currentHabitIndex], 14));
 			Console.SetCursorPosition(width / 2 - 1, 19);
+
 			var keyInput = Console.ReadKey(false);
 			if (keyInput.Key == ConsoleKey.LeftArrow || keyInput.Key == ConsoleKey.RightArrow)
 			{
 				HabitSelector(keyInput);
 			}
-			else if (keyInput.Key == ConsoleKey.Backspace)
-			{
-				Console.Write("\b");
-			}
 			else
 			{
-				char charInput = keyInput.KeyChar;
-				string menuInput = char.ToString(charInput) + Console.ReadLine();
+				string menuInput = char.ToString(keyInput.KeyChar) + Console.ReadLine();
 
 				switch (menuInput)
 				{
@@ -202,8 +199,8 @@ class HabitTrackerProgram
 						Insert();
 						break;
 					case "2":
-						ViewAll();
-						Console.ReadKey();
+						ViewAll("habit_table");
+						SectionExitMessage("");
 						break;
 					case "3":
 						Edit();
@@ -211,9 +208,9 @@ class HabitTrackerProgram
 					case "4":
 						Delete();
 						break;
-					//case "5":
-					//	AddType();
-					//	break;
+					case "5":
+						AddType();
+						break;
 					default:
 						Console.Write(CenterText("Please enter a valid option."));
 						Thread.Sleep(500);
@@ -244,9 +241,10 @@ class HabitTrackerProgram
 			tableCmd.ExecuteNonQuery();
 			connection.Close();
 		}
+		SectionExitMessage("Record added! ");
 	}
 
-	static void ViewAll()
+	static void ViewAll(string table)
 	{
 		Console.Clear();
 		List<CoffeeRecord> queryRecords = new();
@@ -256,7 +254,7 @@ class HabitTrackerProgram
 			connection.Open();
 			var tableCmd = connection.CreateCommand();
 			tableCmd.CommandText = 
-				@$"SELECT * FROM habit_table";
+				@$"SELECT * FROM {table}";
 			var reader = tableCmd.ExecuteReader();
 
 			if (reader.HasRows)
@@ -279,13 +277,12 @@ class HabitTrackerProgram
 			}
 			Console.WriteLine(CenterText("-----------------------------------\n"));
 		}
-		Console.WriteLine(CenterText("Press any key to exit"));
 	}
 
 	static void Edit()
 	{
 		Console.Clear();
-		ViewAll();
+		ViewAll("habit_table");
 		int id = GetNumInput("Enter Id for record you want to change");
 
 		using (connection)
@@ -316,7 +313,7 @@ class HabitTrackerProgram
 	static void Delete()
 	{
 		Console.Clear();
-		ViewAll();
+		ViewAll("habit_table");
 		int id = GetNumInput("Enter the Id of the record you want to delete");
 
 		using (connection)
@@ -468,15 +465,40 @@ class HabitTrackerProgram
 		}
 	}
 
+	static void SectionExitMessage(string exitMessage)
+	{
+		Console.WriteLine(CenterText($"{exitMessage}Press any key to exit" ));
+		Console.ReadKey();
+	}
+
 	static void AddType()
 	{
-		//return current types from db
-		//prompt for new
-		//validate for string length
-		//validate for not existing
-		//add to db type table
-		//add to type list
-		//return to menu
+		Console.Clear();
+		ViewAll("habit_types");
+		Console.WriteLine(CenterText("Enter a new habit type"));
+		string? newHabit = Console.ReadLine();
+		if (newHabit == "exit") { Menu(); }
+
+		if (newHabit == null || newHabit.Length > 14)
+		{
+			Console.WriteLine(CenterText("Invalid length"));
+			Thread.Sleep(500);
+			AddType();
+		}
+		else
+		{
+			using (connection)
+			{
+				connection.Open();
+				var tableCmd = connection.CreateCommand();
+				tableCmd.CommandText =
+					$@"REPLACE INTO habit_types ( Type ) VALUES ('{newHabit}') ";
+				tableCmd.ExecuteNonQuery();
+				connection.Close();
+			}
+			habitTypes.Add(newHabit);
+			SectionExitMessage("Habit type added! ");
+		}
 	}
 }
 
