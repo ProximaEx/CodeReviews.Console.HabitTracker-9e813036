@@ -43,6 +43,9 @@ Thought Process
 		> Allow for multiple habits in one table, let users create habits and specify the units they are tracked in.
 		> Seed data when created for the first time. Several habits and inserting 100 records automatically
 
+	The multiple habits challenge and visual formatting had to be done first.
+	The program namespace is a little cluttered, maybe I'll move some of the general methods to a library.
+
 What Was Hard
 	viewing SQL db files
 	setting working directory
