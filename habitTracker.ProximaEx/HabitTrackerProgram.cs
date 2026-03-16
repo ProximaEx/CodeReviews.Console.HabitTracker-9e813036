@@ -11,8 +11,8 @@ class HabitTrackerProgram
 	const string connectionString = "Data Source=habit-log.db";
 	static readonly SqliteConnection connection = new(connectionString);
 	static List<HabitType> habitTypes = [];
-	static int currentHabitIndex = 0;
-	static bool SelectAllAdded = false;
+	static int currentHabitIndex;
+	static bool SelectAllAdded;
 	static string viewAllQueryCondition = " ";
 	static readonly bool seedData = true;
 	static readonly int seedNum = 100;
