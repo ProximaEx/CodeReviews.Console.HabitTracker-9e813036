@@ -1,23 +1,8 @@
 ﻿using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using PExFormatting;
-
-
-/* ----- Project Reqs -----
- 
-You should handle all possible errors so that the application never crashes.
-
-Your project needs to contain a Read Me file where
-you'll explain how your app works and tell a little
-bit about your thought progress. What was hard? What
-was easy? What have you learned?
-
------ Challenges -----
-
-Write unit tests?
-
-Parameterized queries?
- */
 
 namespace habitTracker.ProximaEx;
 
@@ -29,15 +14,14 @@ class HabitTrackerProgram
 	static int currentHabitIndex = 0;
 	static bool SelectAllAdded = false;
 	static string viewAllQueryCondition = " ";
-	static bool seedData = false;
-	static int seedNum = 100;
+	static readonly bool seedData = true;
+	static readonly int seedNum = 100;
 	static Random rand = new();
 
 	static void Main(string[] args)
 	{
 		FormatLibrary.SetWindow(72,25);
 		CreateTablesIfNotExists();
-		if (seedData) { SeedData(); }
 		GetHabitTypes();
 		FlashTitle();
 		CoffeeAnimation();
@@ -155,7 +139,12 @@ class HabitTrackerProgram
 		while (!exit)
 		{
 			FormatLibrary.Draw(menuStrings);
-			if (!SelectAllAdded && habitTypes.Count >= 2) { habitTypes.Add(new HabitType("All")); SelectAllAdded = true; }
+			if (!SelectAllAdded && habitTypes.Count >= 2)
+			{ 
+				habitTypes.Add(new HabitType("All"));
+				HabitType.Types.Add("All");
+				SelectAllAdded = true; 
+			}
 			Console.SetCursorPosition(Console.WindowWidth / 2 - 7, 7);
 			Console.Write(FormatLibrary.CenterText(habitTypes[currentHabitIndex].Type, 14));
 			Console.SetCursorPosition(Console.WindowWidth / 2 - 1, 20);
@@ -205,9 +194,14 @@ class HabitTrackerProgram
 	static void Insert()
 	{
 		Console.Clear();
+		string? type = habitTypes[currentHabitIndex].Type;
 		string? unit = habitTypes[currentHabitIndex].Unit;
-		if (habitTypes[currentHabitIndex].Type == "All") { unit = GetHabitInput(); }
-		if (unit == "exitOption") { return; }
+		if (habitTypes[currentHabitIndex].Type == "All")
+		{
+			type = GetHabitInput();
+			if (type == "exitOption") { return; }
+			unit = habitTypes[HabitType.Types.IndexOf(type)].Unit;
+		}
 		string date = GetDateInput();
 		if (date == "exitOption") { return; }
 		int quantity = GetNumInput($"Enter quantity of {unit}");
@@ -218,11 +212,11 @@ class HabitTrackerProgram
 			connection.Open();
 			var tableCmd = connection.CreateCommand();
 			tableCmd.CommandText =
-				$@"INSERT INTO habit_table ( Date, Quantity, Habit ) VALUES ( '{date}', {quantity}, '{habitTypes[currentHabitIndex].Type}')";
+				$@"INSERT INTO habit_table ( Date, Quantity, Habit ) VALUES ( '{date}', {quantity}, '{type}')";
 			tableCmd.ExecuteNonQuery();
 			connection.Close();
 		}
-		FormatLibrary.SectionExitMessage("Record added! ");
+		FormatLibrary.SectionExitMessage("Record added!  ");
 	}
 
 	static void ViewAll(string queryCondition = " ")
@@ -310,36 +304,44 @@ class HabitTrackerProgram
 
 	static void Edit()
 	{
-		Console.Clear();
-		ViewAll(viewAllQueryCondition);
-		int id = GetNumInput("Enter Id for record you want to change");
-		if (id == -1) { return; }
-
-		using (connection)
+		while (true)
 		{
-			connection.Open();
-			var scalarCmd = connection.CreateCommand();
-			scalarCmd.CommandText = 
-				$@"SELECT EXISTS (SELECT 1 FROM habit_table WHERE Id = {id})";
-			int isMatch = Convert.ToInt32(scalarCmd.ExecuteScalar());
+			Console.Clear();
+			ViewAll(viewAllQueryCondition);
+			int id = GetNumInput("Enter Id for record you want to change");
+			if (id == -1) { return; }
 
-			if (isMatch == 0)
+			using (connection)
 			{
-				connection.Close();
-				Console.WriteLine(FormatLibrary.CenterText("No match was found"));
-				Thread.Sleep(500);
-				Edit();
-			}
-			string date = GetDateInput();
-			if (date == "exitOption") { return; }
-			int quantity = GetNumInput("Enter new quantity");
-			if (quantity == -1) { return; }
+				connection.Open();
+				var scalarCmd = connection.CreateCommand();
+				scalarCmd.CommandText =
+					$@"SELECT EXISTS (SELECT 1 FROM habit_table WHERE Id = {id})";
+				int isMatch = Convert.ToInt32(scalarCmd.ExecuteScalar());
 
-			var tableCmd = connection.CreateCommand();
-			tableCmd.CommandText =
-				@$"UPDATE habit_table SET Date = '{date}', Quantity = {quantity} WHERE Id = {id}";
-			tableCmd.ExecuteNonQuery();
-			connection.Close();
+				if (isMatch == 0)
+				{
+					connection.Close();
+					Console.WriteLine(FormatLibrary.CenterText("No match was found"));
+					Thread.Sleep(500);
+				}
+				else
+				{
+					string date = GetDateInput();
+					if (date == "exitOption") { return; }
+					int quantity = GetNumInput("Enter new quantity");
+					if (quantity == -1) { return; }
+
+					var tableCmd = connection.CreateCommand();
+					tableCmd.CommandText =
+						@$"UPDATE habit_table SET Date = '{date}', Quantity = {quantity} WHERE Id = {id}";
+					tableCmd.ExecuteNonQuery();
+					connection.Close();
+
+					FormatLibrary.SectionExitMessage("Edit Successful.  ");
+					return;
+				}
+			}
 		}
 	}
 
@@ -349,16 +351,18 @@ class HabitTrackerProgram
 		ViewAll(viewAllQueryCondition);
 		int id = GetNumInput("Enter the Id of the record you want to delete");
 		if (id == -1) { return; }
+		string searchParam = $"WHERE Id = {id}";
+		if (viewAllQueryCondition != " ") { searchParam = $"{viewAllQueryCondition} AND Id = {id}"; }	
 
 		using (connection)
 		{
 			connection.Open();
 			var tableCmd = connection.CreateCommand();
 			tableCmd.CommandText = 
-				$@"DELETE FROM habit_table WHERE Id = {id}";
+				$@"DELETE FROM habit_table {searchParam}";
 			int deletedRows = tableCmd.ExecuteNonQuery();
-			if (deletedRows == 0) { Console.WriteLine(FormatLibrary.CenterText("Couldn't find that record")); }
-			else { Console.WriteLine(FormatLibrary.CenterText("Record deleted")); }
+			if (deletedRows == 0) { FormatLibrary.SectionExitMessage("Couldn't find that record.  "); }
+			else { FormatLibrary.SectionExitMessage("Record deleted.  "); }
 			connection.Close();
 		}
 	}
@@ -372,6 +376,7 @@ class HabitTrackerProgram
 			string? input = Console.ReadLine();
 			if (input == "exit") { return -1; }
 			bool parsed = int.TryParse(input, out int result);
+
 			if (parsed && result > 0 && result < 5000) { return result; }
 			else if (!parsed) { Console.WriteLine(FormatLibrary.CenterText("Invalid input, please enter a number")); }
 			else if (result <= 0 || result >= 5000) { Console.WriteLine(FormatLibrary.CenterText("Invalid input, out of range 0-5000")); }
@@ -383,10 +388,11 @@ class HabitTrackerProgram
 	{
 		while (true)
 		{
-			Console.WriteLine("\n" + FormatLibrary.CenterText("Enter date (formatted mm-dd-yy)"));
+			Console.WriteLine("\n" + FormatLibrary.CenterText("Enter date (formatted mm-dd-yy) or press Enter for today"));
 			FormatLibrary.CenterCursor(8);
 			string? input = Console.ReadLine();
 			if (input == "exit") { return "exitOption"; }
+			if (input == "") { return DateTime.Now.ToString("MM-dd-yy"); }
 			if (DateTime.TryParseExact(input, "MM-dd-yy", new CultureInfo("en-US"), 0, out DateTime outyDate)) { return input; }
 			else { Console.WriteLine(FormatLibrary.CenterText("Invalid date")); }
 		}
@@ -453,6 +459,7 @@ class HabitTrackerProgram
 				)",
 			@"REPLACE INTO habit_types ( Type , Unit ) VALUES ( 'Coffee' , 'Cups' )"
 		];
+		int isEmpty = 0;
 		using (connection)
 		{
 			connection.Open();
@@ -462,8 +469,13 @@ class HabitTrackerProgram
 				tableCmd.CommandText = cmd;
 				tableCmd.ExecuteNonQuery();
 			}
+			var scalarCmd = connection.CreateCommand();
+			scalarCmd.CommandText =
+				$@"SELECT EXISTS (SELECT 1 FROM habit_table)";
+			isEmpty = Convert.ToInt32(scalarCmd.ExecuteScalar());
 			connection.Close();
 		}
+		if (isEmpty == 0 && seedData) { SeedData(); }
 	}
 
 	static void AddType()
@@ -484,9 +496,13 @@ class HabitTrackerProgram
 			tableCmd.ExecuteNonQuery();
 			connection.Close();
 		}
-		habitTypes.Add(new HabitType(newHabit,newUnit));
-		HabitType.Types.Add(newHabit);
-		FormatLibrary.SectionExitMessage("Habit type added!  ");
+		if (!HabitType.Types.Contains(newHabit))
+		{
+			habitTypes.Add(new HabitType(newHabit, newUnit));
+			HabitType.Types.Add(newHabit);
+			FormatLibrary.SectionExitMessage("Habit type added!  ");
+		}
+		else { FormatLibrary.SectionExitMessage("Habit type already exists.  "); }
 	}
 
 	public static string NewTypeInfo(string question, int charLimit = 14)
@@ -514,8 +530,8 @@ class HabitTrackerProgram
 	{
 		string[,] seedHabits =
 		{
-			{ "Coffee" , "Drink Water" , "Be Friendly" , "Arrive Early" , "Say Grace" , "Stub Toe" },
-			{ "Cups" , "Cups" , "Smiles" , "Minutes" , "Times Said" , "Pain" }
+			{ "Coffee" , "Drink Water" , "Code" , "Small Talk" , "Protien" , "Paper Cuts" },
+			{ "Cups" , "Cups" , "Hours" , "Interactions" , "Grams" , "Pain" }
 		};
 		using (connection)
 		{
@@ -533,8 +549,8 @@ class HabitTrackerProgram
 			for (int i = 0; i < seedNum; i++)
 			{
 				var tableCmd = connection.CreateCommand();
-				DateOnly startDate = new(2020, 1, 1);
-				startDate.AddDays(i);
+				DateOnly startDate = new(2026, 3, 15);
+				startDate = startDate.AddDays(i-seedNum);
 				string date = startDate.ToString("MM-dd-yy");
 				string habit = seedHabits[0, rand.Next(0, 6)];
 				int quantity = rand.Next(1,10);

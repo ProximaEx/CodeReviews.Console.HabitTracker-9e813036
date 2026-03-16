@@ -69,6 +69,6 @@ public static class FormatLibrary
 	{
 		Console.WriteLine("\n" + CenterText($"{exitMessage}Press any key to exit"));
 		CenterCursor(2);
-		Console.ReadKey();
+		Console.ReadKey(true);
 	}
 }
